@@ -1,7 +1,8 @@
 # compiled output
-dist
 node_modules
 .env.*.local
+
+.git
 
 .yarn/cache
 .yarn/install-state.gz
