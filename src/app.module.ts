@@ -3,6 +3,7 @@ import { ConfigModule } from '@nestjs/config';
 import { ENV_FILE_PATHS, EXPAND_VARIABLES } from './app.env';
 import { JwtModule } from './jwt/jwt.module';
 import { RedisModule } from './redis/redis.module';
+import { TypeOrmModule } from './typeorm/typeorm.module';
 
 @Module({
   imports: [
@@ -13,6 +14,7 @@ import { RedisModule } from './redis/redis.module';
     }),
     RedisModule,
     JwtModule,
+    TypeOrmModule.forRoot(),
   ],
   controllers: [],
   providers: [],
