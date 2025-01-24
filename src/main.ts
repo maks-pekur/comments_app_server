@@ -8,7 +8,6 @@ import helmet from 'helmet';
 
 import { AppModule } from './app.module';
 import { CorsMiddleware } from './cors/cors.middleware';
-import { RedisService } from './redis/redis.service';
 
 async function bootstrap() {
   const server = express();
@@ -18,7 +17,8 @@ async function bootstrap() {
   });
 
   const config = app.get(ConfigService);
-  const redis = app.get(RedisService);
+  // const redis = app.get(RedisService);
+  // const jwt = app.get(JwtService);
 
   app.use(
     helmet({

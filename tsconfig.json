@@ -20,7 +20,9 @@
     "forceConsistentCasingInFileNames": true,
     "noFallthroughCasesInSwitch": true,
 
-    "outDir": "./dist",
-    "rootDir": "./src",
+    "rootDir": "./",
+    "typeRoots": [
+      "./node_modules/@types",
+    ],
   }
 }

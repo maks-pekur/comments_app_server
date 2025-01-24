@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { ENV_FILE_PATHS, EXPAND_VARIABLES } from './app.env';
+import { JwtModule } from './jwt/jwt.module';
 import { RedisModule } from './redis/redis.module';
 
 @Module({
@@ -11,6 +12,7 @@ import { RedisModule } from './redis/redis.module';
       envFilePath: ENV_FILE_PATHS,
     }),
     RedisModule,
+    JwtModule,
   ],
   controllers: [],
   providers: [],
