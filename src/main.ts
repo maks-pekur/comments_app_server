@@ -2,10 +2,12 @@ import { ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import { ExpressAdapter } from '@nestjs/platform-express';
+import cookieParser from 'cookie-parser';
 import express from 'express';
 import helmet from 'helmet';
 
 import { AppModule } from './app.module';
+import { CorsMiddleware } from './cors/cors.middleware';
 
 async function bootstrap() {
   const server = express();
@@ -20,6 +22,23 @@ async function bootstrap() {
     helmet({
       contentSecurityPolicy: false,
       crossOriginEmbedderPolicy: false,
+    }),
+  );
+
+  app.use(cookieParser());
+
+  app.enableCors(
+    CorsMiddleware({
+      allowed_origins: JSON.parse(
+        config.getOrThrow<string>('CORS_ALLOWED_ORIGINS'),
+      ),
+      allowed_methods: JSON.parse(
+        config.getOrThrow<string>('CORS_ALLOWED_METHODS'),
+      ),
+      allowed_paths: JSON.parse(
+        config.getOrThrow<string>('CORS_ALLOWED_PATHS'),
+      ),
+      credentials: config.getOrThrow<boolean>('CORS_CREDENTIALS'),
     }),
   );
 
