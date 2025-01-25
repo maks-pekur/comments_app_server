@@ -17,7 +17,6 @@ COPY tsconfig.json tsconfig.build.json ./
 COPY config ./config
 COPY src ./src
 
-RUN npm install rimraf -g
 RUN npm run build
 
 FROM node:22-alpine AS production
