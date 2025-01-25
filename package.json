@@ -18,6 +18,8 @@
     "typeorm:run:build": "npm run typeorm:cli:js -- -d ./dist/typeorm/typeorm.cli.js migration:run"
   },
   "dependencies": {
+    "@golevelup/nestjs-discovery": "^4.0.3",
+    "@golevelup/nestjs-rabbitmq": "^5.7.0",
     "@nestjs/common": "^11.0.1",
     "@nestjs/config": "^4.0.0",
     "@nestjs/core": "^11.0.1",

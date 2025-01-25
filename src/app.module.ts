@@ -3,11 +3,12 @@ import { ConfigModule } from '@nestjs/config';
 import { ENV_FILE_PATHS, EXPAND_VARIABLES } from './app.env';
 import { AuthMiddleware } from './auth/auth.middleware';
 import { AuthModule } from './auth/auth.module';
+import { CommentsModule } from './comments/comments.module';
 import { JwtModule } from './jwt/jwt.module';
+import { RabbitMQModule } from './rabbitmq/rabbitmq.module';
 import { RedisModule } from './redis/redis.module';
 import { TypeOrmModule } from './typeorm/typeorm.module';
 import { UserModule } from './user/user.module';
-import { CommentsModule } from './comments/comments.module';
 
 @Module({
   imports: [
@@ -17,6 +18,7 @@ import { CommentsModule } from './comments/comments.module';
       envFilePath: ENV_FILE_PATHS,
     }),
     RedisModule,
+    RabbitMQModule.forRoot(),
     JwtModule,
     TypeOrmModule.forRoot(),
     AuthModule,
