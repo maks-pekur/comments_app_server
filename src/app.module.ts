@@ -7,6 +7,7 @@ import { JwtModule } from './jwt/jwt.module';
 import { RedisModule } from './redis/redis.module';
 import { TypeOrmModule } from './typeorm/typeorm.module';
 import { UserModule } from './user/user.module';
+import { CommentsModule } from './comments/comments.module';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { UserModule } from './user/user.module';
     TypeOrmModule.forRoot(),
     AuthModule,
     UserModule,
+    CommentsModule,
   ],
   controllers: [],
   providers: [],

@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { DataSource, DeepPartial, EntityManager } from 'typeorm';
+import { DataSource, EntityManager } from 'typeorm';
 
 import { JwtService } from '../jwt/jwt.service';
 import { IJwtPayload, User } from '../user/user.entity';
@@ -42,7 +42,7 @@ export class AuthService {
         throw bad_request('User with this email already exists');
       }
 
-      const user_dto: DeepPartial<User> = {
+      const user_dto = {
         email: normalizedEmail,
         username,
         encrypted_password: passwordToHash(password),

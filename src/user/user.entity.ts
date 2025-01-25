@@ -19,20 +19,6 @@ export class User {
   @PrimaryGeneratedColumn('uuid')
   public id!: string;
 
-  @CreateDateColumn({
-    type: 'timestamp without time zone',
-    precision: 3,
-    default: () => 'CURRENT_TIMESTAMP',
-  })
-  public created_at!: Date;
-
-  @UpdateDateColumn({
-    type: 'timestamp without time zone',
-    precision: 3,
-    default: () => 'CURRENT_TIMESTAMP',
-  })
-  public updated_at!: Date;
-
   @Column({ nullable: false })
   @Index('IDX_user_username', { synchronize: false })
   public username!: string;
@@ -48,6 +34,23 @@ export class User {
 
   @OneToMany(() => RefreshToken, (refresh_token) => refresh_token.user)
   public refresh_tokens?: RefreshToken[];
+
+  @OneToMany(() => Comment, (comment) => comment.user)
+  public comments!: Comment[];
+
+  @CreateDateColumn({
+    type: 'timestamp without time zone',
+    precision: 3,
+    default: () => 'CURRENT_TIMESTAMP',
+  })
+  public created_at!: Date;
+
+  @UpdateDateColumn({
+    type: 'timestamp without time zone',
+    precision: 3,
+    default: () => 'CURRENT_TIMESTAMP',
+  })
+  public updated_at!: Date;
 
   public getJwtPayload(): IJwtPayload {
     return {
