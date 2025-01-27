@@ -10,6 +10,9 @@ import helmet from 'helmet';
 
 import { AppModule } from './app.module';
 import { CorsMiddleware } from './cors/cors.middleware';
+import { JwtService } from './jwt/jwt.service';
+import { RedisService } from './redis/redis.service';
+import { WsAdapter } from './ws/ws.adapter';
 
 async function bootstrap() {
   const server = express();
@@ -19,8 +22,8 @@ async function bootstrap() {
   });
 
   const config = app.get(ConfigService);
-  // const redis = app.get(RedisService);
-  // const jwt = app.get(JwtService);
+  const redis = app.get(RedisService);
+  const jwt = app.get(JwtService);
 
   app.use(
     helmet({
@@ -45,6 +48,8 @@ async function bootstrap() {
       credentials: config.getOrThrow<boolean>('CORS_CREDENTIALS'),
     }),
   );
+
+  app.useWebSocketAdapter(new WsAdapter(app, config, redis, jwt));
 
   app.useGlobalPipes(
     new ValidationPipe({

@@ -5,7 +5,6 @@ import {
   RabbitMQModule as NestJSRabbitMQ,
   RABBIT_HANDLER,
   RabbitHandlerConfig,
-  RabbitMQConfig,
 } from '@golevelup/nestjs-rabbitmq';
 import { DynamicModule, Inject, Module, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -53,7 +52,7 @@ export class RabbitMQModule implements OnModuleInit {
     });
   }
 
-  public static forRoot(options: Partial<RabbitMQConfig> = {}): DynamicModule {
+  public static forRoot(): DynamicModule {
     return {
       imports: [
         DiscoveryModule,
@@ -81,7 +80,7 @@ export class RabbitMQModule implements OnModuleInit {
               uri: `amqp://${RABBITMQ_USERNAME}:${RABBITMQ_PASSWORD}@${RABBITMQ_HOST}:${RABBITMQ_PORT}/${RABBITMQ_VHOST}`,
               prefetchCount: 30,
               defaultSubscribeErrorBehavior: MessageHandlerErrorBehavior.NACK,
-              connectionInitOptions: { wait: true },
+              connectionInitOptions: { wait: true, timeout: 10000 },
             };
           },
           inject: [ConfigService],

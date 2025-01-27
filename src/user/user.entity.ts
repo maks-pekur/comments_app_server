@@ -8,6 +8,7 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 import { RefreshToken } from '../auth/refresh-token/refresh-token.entity';
+import { Comment } from '../comments/comment.entity';
 
 export interface IJwtPayload {
   id: string;

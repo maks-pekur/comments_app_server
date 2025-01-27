@@ -9,6 +9,7 @@ import { RabbitMQModule } from './rabbitmq/rabbitmq.module';
 import { RedisModule } from './redis/redis.module';
 import { TypeOrmModule } from './typeorm/typeorm.module';
 import { UserModule } from './user/user.module';
+import { WsModule } from './ws/ws.module';
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { UserModule } from './user/user.module';
     AuthModule,
     UserModule,
     CommentsModule,
+    WsModule,
   ],
   controllers: [],
   providers: [],

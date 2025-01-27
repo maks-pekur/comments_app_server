@@ -23,6 +23,7 @@ import {
 } from '@nestjs/swagger';
 import { Request } from 'express';
 import { sanitizeComment } from '../utils/sanitize';
+import { Comment } from './comment.entity';
 import { CommentsService } from './comments.service';
 import { CreateCommentDTO } from './dto/create-comment.dto';
 import { UpdateCommentDTO } from './dto/update-comment.dto';
