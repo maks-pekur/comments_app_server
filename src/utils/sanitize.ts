@@ -2,10 +2,11 @@ import sanitizeHtml from 'sanitize-html';
 
 export function sanitizeComment(text: string): string {
   return sanitizeHtml(text, {
-    allowedTags: ['b', 'i', 'em', 'strong', 'a', 'p', 'ul', 'li', 'ol', 'br'],
+    allowedTags: ['a', 'code', 'i', 'strong'],
     allowedAttributes: {
-      a: ['href', 'target', 'rel'],
+      a: ['href', 'title'],
     },
     allowedSchemes: ['http', 'https', 'mailto'],
+    enforceHtmlBoundary: true,
   });
 }

@@ -8,6 +8,7 @@ import { JwtModule } from './jwt/jwt.module';
 import { RabbitMQModule } from './rabbitmq/rabbitmq.module';
 import { RedisModule } from './redis/redis.module';
 import { TypeOrmModule } from './typeorm/typeorm.module';
+import { UploadModule } from './upload/upload.module';
 import { UserModule } from './user/user.module';
 import { WsModule } from './ws/ws.module';
 
@@ -26,6 +27,7 @@ import { WsModule } from './ws/ws.module';
     UserModule,
     CommentsModule,
     WsModule,
+    UploadModule,
   ],
   controllers: [],
   providers: [],
