@@ -7,23 +7,26 @@ import {
   Patch,
   Post,
   Query,
-  Req,
   UnauthorizedException,
+  UploadedFiles,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FilesInterceptor } from '@nestjs/platform-express';
 import {
   ApiBody,
+  ApiConsumes,
   ApiForbiddenResponse,
   ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
   ApiParam,
   ApiQuery,
+  ApiResponse,
   ApiTags,
-  ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
-import { Request } from 'express';
+import { RestCurrentUser } from '../auth/auth.decorator';
+import { IJwtPayload } from '../user/user.entity';
 import { sanitizeComment } from '../utils/sanitize';
-import { Comment } from './comment.entity';
 import { CommentsService } from './comments.service';
 import { CreateCommentDTO } from './dto/create-comment.dto';
 import { UpdateCommentDTO } from './dto/update-comment.dto';
@@ -78,22 +81,15 @@ export class CommentsController {
   })
   async getComments(
     @Query('page') page = 1,
-    @Query('limit') limit = 10,
+    @Query('limit') limit = 25,
     @Query('sort') sort: 'created_at' | 'username' | 'email' = 'created_at',
     @Query('order') order: 'ASC' | 'DESC' = 'DESC',
     @Query('text') text?: string,
     @Query('username') username?: string,
     @Query('email') email?: string,
   ) {
-    const validSortFields = ['created_at', 'username', 'email'];
-    const validOrderValues = ['ASC', 'DESC'];
-
-    if (!validSortFields.includes(sort)) {
-      sort = 'created_at';
-    }
-    if (!validOrderValues.includes(order)) {
-      order = 'DESC';
-    }
+    page = Math.max(1, page);
+    limit = Math.max(1, limit);
 
     return this.commentsService.getComments(page, limit, sort, order, {
       text,
@@ -102,66 +98,95 @@ export class CommentsController {
     });
   }
 
-  @ApiOperation({ summary: 'Create a comment or reply to a comment' })
-  @ApiBody({ type: CreateCommentDTO })
-  @ApiOkResponse({
-    description: 'Comment successfully created',
-    type: Comment,
-  })
   @Post()
+  @ApiOperation({ summary: 'Create a comment with optional files' })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    description: 'Comment data with optional files',
+    schema: {
+      type: 'object',
+      properties: {
+        text: { type: 'string', example: 'This is a comment' },
+        parentId: {
+          type: 'string',
+          example: 'parent-comment-id',
+          nullable: true,
+        },
+        files: {
+          type: 'array',
+          items: {
+            type: 'string',
+            format: 'binary',
+          },
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'Comment successfully created',
+  })
+  @UseInterceptors(FilesInterceptor('files', 5))
   async createComment(
     @Body() createCommentDto: CreateCommentDTO,
-    @Req() req: Request & { current_user: { id: string } },
+    @UploadedFiles() files: Express.Multer.File[],
+    @RestCurrentUser() current_user: IJwtPayload,
   ) {
-    if (!req.current_user) {
+    if (!current_user) {
       throw new UnauthorizedException('User not authenticated');
     }
 
-    const userId = req.current_user.id;
+    const userId = current_user.id;
 
     return this.commentsService.createComment(
       userId,
       createCommentDto.text,
+      files,
       createCommentDto.parentId,
     );
   }
 
-  @ApiOperation({ summary: 'Update a comment' })
-  @ApiParam({
-    name: 'id',
-    description: 'ID of the comment to update',
-    example: 'comment-id-123',
-  })
-  @ApiBody({
-    type: UpdateCommentDTO,
-    description: 'Data for updating the comment',
-  })
-  @ApiOkResponse({
-    description: 'Comment successfully updated',
-    type: Comment,
-  })
-  @ApiUnauthorizedResponse({
-    description: 'User not authorized to edit this comment',
-  })
-  @ApiNotFoundResponse({
-    description: 'Comment not found',
-  })
   @Patch(':id')
+  @ApiOperation({ summary: 'Update a comment with optional files' })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    description: 'Data for updating the comment with optional files',
+    schema: {
+      type: 'object',
+      properties: {
+        text: { type: 'string', example: 'Updated comment text' },
+        files: {
+          type: 'array',
+          items: {
+            type: 'string',
+            format: 'binary',
+          },
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Comment successfully updated',
+  })
+  @UseInterceptors(FilesInterceptor('files', 5))
   async updateComment(
     @Param('id') id: string,
     @Body() updateCommentDto: UpdateCommentDTO,
-    @Req() req: Request & { current_user: { id: string } },
+    @UploadedFiles() files: Express.Multer.File[],
+    @RestCurrentUser() current_user: IJwtPayload,
   ) {
-    if (!req.current_user) {
+    if (!current_user) {
       throw new UnauthorizedException('User not authenticated');
     }
 
-    const userId = req.current_user.id;
+    const userId = current_user.id;
 
     return this.commentsService.updateComment(
       id,
       userId,
       updateCommentDto.text,
+      files,
     );
   }
 
@@ -182,6 +207,7 @@ export class CommentsController {
     return { preview: sanitizedText };
   }
 
+  @Delete(':id')
   @ApiOperation({ summary: 'Delete a comment' })
   @ApiParam({
     name: 'id',
@@ -197,16 +223,15 @@ export class CommentsController {
   @ApiNotFoundResponse({
     description: 'Comment not found',
   })
-  @Delete(':id')
   async deleteComment(
     @Param('id') id: string,
-    @Req() req: Request & { current_user: { id: string } },
+    @RestCurrentUser() current_user: IJwtPayload,
   ) {
-    if (!req.current_user) {
+    if (!current_user) {
       throw new UnauthorizedException('User not authenticated');
     }
 
-    const userId = req.current_user.id;
+    const userId = current_user.id;
 
     await this.commentsService.deleteComment(id, userId);
 

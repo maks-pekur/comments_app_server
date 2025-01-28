@@ -9,6 +9,7 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 import { User } from '../user/user.entity';
+import { File } from '../upload/file.entity';
 
 @Entity({ name: 'comments' })
 export class Comment {
@@ -25,6 +26,9 @@ export class Comment {
   })
   @Index('IDX_comment_user_id')
   public user!: User;
+
+  @OneToMany(() => File, (file) => file.comment, { cascade: true })
+  public files!: File[];
 
   @ManyToOne(() => Comment, (comment) => comment.replies, { nullable: true })
   @Index('IDX_comment_parent_id')
