@@ -9,6 +9,7 @@ import {
 } from 'typeorm';
 import { RefreshToken } from '../auth/refresh-token/refresh-token.entity';
 import { Comment } from '../comments/comment.entity';
+import { Exclude } from 'class-transformer';
 
 export interface IJwtPayload {
   id: string;
@@ -30,6 +31,7 @@ export class User {
   @Column({ nullable: true })
   public home_page?: string;
 
+  @Exclude()
   @Column({ nullable: false })
   public encrypted_password!: string;
 

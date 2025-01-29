@@ -10,6 +10,7 @@ import helmet from 'helmet';
 
 import { AppModule } from './app.module';
 import { CorsMiddleware } from './cors/cors.middleware';
+import { TransformInterceptor } from './common/interceptors/transform.interceptor';
 import { JwtService } from './jwt/jwt.service';
 import { RedisService } from './redis/redis.service';
 import { WsAdapter } from './ws/ws.adapter';
@@ -56,6 +57,7 @@ async function bootstrap() {
       transform: true,
     }),
   );
+  app.useGlobalInterceptors(new TransformInterceptor());
 
   const options = new DocumentBuilder()
     .setTitle('CommentsApp')

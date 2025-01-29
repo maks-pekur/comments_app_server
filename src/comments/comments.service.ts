@@ -38,9 +38,7 @@ export class CommentsService {
     const validPage = Math.max(page, 1);
     const validLimit = Math.max(limit, 1);
 
-    const cacheKey = `comments:${validPage}:${validLimit}:${sort}:${order}:${JSON.stringify(
-      filters,
-    )}`;
+    const cacheKey = `comments:${validPage}:${validLimit}:${sort}:${order}:${JSON.stringify(filters)}`;
 
     const cachedResult = await this.redisService.get<{
       data: Comment[];
@@ -52,6 +50,8 @@ export class CommentsService {
     }
 
     const where = new Brackets((qb) => {
+      qb.andWhere('comment.parentComment IS NULL');
+
       if (filters.text) {
         qb.andWhere('comment.text LIKE :text', { text: `%${filters.text}%` });
       }
@@ -68,8 +68,9 @@ export class CommentsService {
     const [comments, total] = await this.commentRepository
       .createQueryBuilder('comment')
       .leftJoinAndSelect('comment.user', 'user')
-      .leftJoinAndSelect('comment.replies', 'replies')
       .leftJoinAndSelect('comment.files', 'files')
+      .leftJoinAndSelect('comment.replies', 'replies')
+      .leftJoinAndSelect('replies.user', 'replyUser')
       .where(where)
       .orderBy(`comment.${sort}`, order)
       .skip((validPage - 1) * validLimit)
