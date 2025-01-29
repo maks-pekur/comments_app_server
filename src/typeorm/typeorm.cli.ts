@@ -27,16 +27,18 @@ function loadEnvFile(): Record<string, any> {
 
 const config = loadEnvFile();
 
-export default new DataSource({
+const dataSource = new DataSource({
   type: 'postgres',
   host: process.env.DB_HOST || 'localhost',
   port: parseInt(process.env.DB_PORT || '5432', 10),
   username: process.env.DB_USERNAME || 'postgres',
   password: process.env.DB_PASSWORD || 'postgres',
   database: `${process.env.NODE_ENV!}_${config.DB_DATABASE!}`,
-  entities: ['./src/**/*.entity.ts'],
-  migrations: ['./src/typeorm/migrations/**/*.ts'],
+  entities: [__dirname + '/../**/*.entity{.ts,.js}'],
+  migrations: [__dirname + '/migrations/**/*{.ts,.js}'],
   migrationsRun: false,
   synchronize: false,
   logging: JSON.parse(config.DB_LOGGING!),
 });
+
+export default dataSource;

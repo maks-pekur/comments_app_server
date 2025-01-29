@@ -80,22 +80,28 @@ export class CommentsController {
     description: 'Filter comments by email',
   })
   async getComments(
-    @Query('page') page = 1,
-    @Query('limit') limit = 25,
+    @Query('page') page: string = '1',
+    @Query('limit') limit: string = '25',
     @Query('sort') sort: 'created_at' | 'username' | 'email' = 'created_at',
     @Query('order') order: 'ASC' | 'DESC' = 'DESC',
     @Query('text') text?: string,
     @Query('username') username?: string,
     @Query('email') email?: string,
   ) {
-    page = Math.max(1, page);
-    limit = Math.max(1, limit);
+    const pageNumber = Number(page) > 0 ? Number(page) : 1;
+    const limitNumber = Number(limit) > 0 ? Number(limit) : 25;
 
-    return this.commentsService.getComments(page, limit, sort, order, {
-      text,
-      username,
-      email,
-    });
+    return this.commentsService.getComments(
+      pageNumber,
+      limitNumber,
+      sort,
+      order,
+      {
+        text,
+        username,
+        email,
+      },
+    );
   }
 
   @Post()

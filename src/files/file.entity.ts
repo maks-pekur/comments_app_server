@@ -7,7 +7,7 @@ import {
 } from 'typeorm';
 import { Comment } from '../comments/comment.entity';
 
-@Entity({ name: 'files' })
+@Entity('file')
 export class File {
   @PrimaryGeneratedColumn('uuid')
   public id!: string;

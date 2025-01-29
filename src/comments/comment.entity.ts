@@ -11,7 +11,7 @@ import {
 import { File } from '../files/file.entity';
 import { User } from '../user/user.entity';
 
-@Entity('comments')
+@Entity('comment')
 export class Comment {
   @PrimaryGeneratedColumn('uuid')
   @Index('IDX_comment_id')

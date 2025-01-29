@@ -15,7 +15,7 @@ export interface IJwtPayload {
   email: string;
 }
 
-@Entity({ name: 'user' })
+@Entity('user')
 export class User {
   @PrimaryGeneratedColumn('uuid')
   public id!: string;

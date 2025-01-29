@@ -4,7 +4,6 @@ import {
   TypeOrmModule as NestJSTypeOrmModule,
   TypeOrmModuleOptions,
 } from '@nestjs/typeorm';
-import * as path from 'path';
 import { DataSourceOptions } from 'typeorm';
 import { createDatabase } from 'typeorm-extension';
 import { PostgresConnectionOptions } from 'typeorm/driver/postgres/PostgresConnectionOptions';
@@ -25,10 +24,8 @@ export class TypeOrmModule {
               username: config.getOrThrow<string>('DB_USERNAME'),
               password: config.getOrThrow<string>('DB_PASSWORD'),
               database: `${process.env.NODE_ENV || 'development'}_${config.getOrThrow<string>('DB_DATABASE')}`,
-              entities: [path.resolve(__dirname, '..', '**/*.entity.{ts,js}')],
-              migrations: [
-                path.resolve(__dirname, 'migrations', '**/*.{ts,js}'),
-              ],
+              entities: [__dirname + '/../**/*.entity{.ts,.js}'],
+              migrations: [__dirname + '/migrations/**/*{.ts,.js}'],
               migrationsRun: false,
               synchronize: false,
               logging: JSON.parse(config.getOrThrow<string>('DB_LOGGING')),

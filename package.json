@@ -11,9 +11,9 @@
     "start:dev": "nodemon",
     "start:build": "node --enable-source-maps dist/main.js --unhandled-rejections=warn",
     "typeorm:cli:ts": "ts-node -r tsconfig-paths/register ./node_modules/typeorm/cli",
-    "typeorm:create": "NODE_ENV=development npm run typeorm:cli:ts -- migration:create ./src/typeorm/migrations/created",
-    "typeorm:generate": "NODE_ENV=development npm run typeorm:cli:ts -- -d ./src/typeorm/typeorm.cli.ts migration:generate ./src/typeorm/migrations/generated",
-    "typeorm:run:dev": "NODE_ENV=development npm run typeorm:cli:ts -- -d ./src/typeorm/typeorm.cli.ts migration:run",
+    "typeorm:create": "cross-env NODE_ENV=development npm run typeorm:cli:ts -- migration:create ./src/typeorm/migrations/created",
+    "typeorm:generate": "cross-env NODE_ENV=development npm run typeorm:cli:ts -- -d ./src/typeorm/typeorm.cli.ts migration:generate ./src/typeorm/migrations/generated",
+    "typeorm:run:dev": "cross-env NODE_ENV=development npm run typeorm:cli:ts -- -d ./src/typeorm/typeorm.cli.ts migration:run",
     "typeorm:cli:js": "node -r tsconfig-paths/register ./node_modules/typeorm/cli",
     "typeorm:run:build": "npm run typeorm:cli:js -- -d ./dist/typeorm/typeorm.cli.js migration:run"
   },
