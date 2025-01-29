@@ -6,8 +6,10 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { promises as fs } from 'fs';
-import { IsNull, Like, Repository } from 'typeorm';
-import { File } from '../upload/file.entity';
+import { Brackets, Repository } from 'typeorm';
+import { File } from '../files/file.entity';
+import { RabbitMQService } from '../rabbitmq/rabbitmq.service';
+import { RedisService } from '../redis/redis.service';
 import { UploadService } from '../upload/upload.service';
 import { Comment } from './comment.entity';
 
@@ -19,6 +21,8 @@ export class CommentsService {
     @InjectRepository(File)
     private readonly fileRepository: Repository<File>,
     private readonly uploadService: UploadService,
+    private readonly redisService: RedisService,
+    private readonly rabbitMQService: RabbitMQService,
   ) {}
 
   async getComments(
@@ -33,34 +37,48 @@ export class CommentsService {
   }> {
     const validPage = Math.max(page, 1);
     const validLimit = Math.max(limit, 1);
-    const where: Record<string, any> = { parentComment: IsNull() };
 
-    if (filters.text) {
-      where.text = Like(`%${filters.text}%`);
-    }
-    if (filters.username) {
-      where.user = { username: Like(`%${filters.username}%`) };
-    }
-    if (filters.email) {
-      where.user = { ...where.user, email: Like(`%${filters.email}%`) };
+    const cacheKey = `comments:${validPage}:${validLimit}:${sort}:${order}:${JSON.stringify(
+      filters,
+    )}`;
+
+    const cachedResult = await this.redisService.get<{
+      data: Comment[];
+      meta: { total: number; page: number; pages: number };
+    }>(cacheKey);
+
+    if (cachedResult) {
+      return cachedResult;
     }
 
-    const [comments, total] = await this.commentRepository.findAndCount({
-      where,
-      relations: ['replies', 'user', 'files'],
-      order:
-        sort === 'username'
-          ? { user: { username: order } }
-          : sort === 'email'
-            ? { user: { email: order } }
-            : { created_at: order },
-      skip: (validPage - 1) * validLimit,
-      take: validLimit,
+    const where = new Brackets((qb) => {
+      if (filters.text) {
+        qb.andWhere('comment.text LIKE :text', { text: `%${filters.text}%` });
+      }
+      if (filters.username) {
+        qb.andWhere('user.username LIKE :username', {
+          username: `%${filters.username}%`,
+        });
+      }
+      if (filters.email) {
+        qb.andWhere('user.email LIKE :email', { email: `%${filters.email}%` });
+      }
     });
+
+    const [comments, total] = await this.commentRepository
+      .createQueryBuilder('comment')
+      .leftJoinAndSelect('comment.user', 'user')
+      .leftJoinAndSelect('comment.replies', 'replies')
+      .leftJoinAndSelect('comment.files', 'files')
+      .where(where)
+      .orderBy(`comment.${sort}`, order)
+      .skip((validPage - 1) * validLimit)
+      .take(validLimit)
+      .getManyAndCount();
 
     const pages = Math.ceil(total / validLimit);
 
-    return {
+    const result = {
       data: comments,
       meta: {
         total,
@@ -68,6 +86,10 @@ export class CommentsService {
         pages,
       },
     };
+
+    await this.redisService.set(cacheKey, result, 60 * 5);
+
+    return result;
   }
 
   async createComment(
@@ -183,20 +205,9 @@ export class CommentsService {
     }
 
     if (comment.files && comment.files.length > 0) {
-      let successCount = 0;
-      let errorCount = 0;
-
-      for (const file of comment.files) {
-        try {
-          await fs.unlink(file.path);
-          successCount++;
-        } catch (error) {
-          console.error(`Failed to delete file: ${file.path}`, error);
-          errorCount++;
-        }
-      }
-
-      console.log(`Files deleted: ${successCount}, Errors: ${errorCount}`);
+      await this.rabbitMQService.send('file.delete', {
+        files: comment.files.map((file) => file.path),
+      });
     }
 
     await this.commentRepository.remove(comment);

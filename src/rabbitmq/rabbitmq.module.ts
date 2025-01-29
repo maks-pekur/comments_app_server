@@ -1,59 +1,23 @@
-import { DiscoveryModule, DiscoveryService } from '@golevelup/nestjs-discovery';
+import { DiscoveryModule } from '@golevelup/nestjs-discovery';
 import {
-  AmqpConnection,
   MessageHandlerErrorBehavior,
   RabbitMQModule as NestJSRabbitMQ,
-  RABBIT_HANDLER,
-  RabbitHandlerConfig,
+  RabbitMQConfig,
 } from '@golevelup/nestjs-rabbitmq';
-import { DynamicModule, Inject, Module, OnModuleInit } from '@nestjs/common';
+import { DynamicModule, Global, Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
 import { RabbitMQDiscovery } from './rabbitmq.discovery';
+import { RabbitMQInitializer } from './rabbitmq.initializer';
 import { RabbitMQService } from './rabbitmq.service';
 
+@Global()
 @Module({})
-export class RabbitMQModule implements OnModuleInit {
-  constructor(
-    private readonly config: ConfigService,
-    @Inject(AmqpConnection) private readonly connection: AmqpConnection,
-    private readonly discover: DiscoveryService,
-  ) {}
-
-  public async onModuleInit() {
-    const RABBITMQ_PREFIX = this.config.get<string>('RABBITMQ_PREFIX');
-    const RABBITMQ_EXCHANGE =
-      this.config.getOrThrow<string>('RABBITMQ_EXCHANGE');
-
-    const rabbit_meta =
-      await this.discover.providerMethodsWithMetaAtKey<RabbitHandlerConfig>(
-        RABBIT_HANDLER,
-      );
-
-    const exchanges = rabbit_meta.reduce<Set<string>>((acc, curr) => {
-      if (
-        curr.meta.exchange &&
-        !curr.meta.exchange.startsWith(`${RABBITMQ_PREFIX}${RABBITMQ_EXCHANGE}`)
-      ) {
-        acc.add(curr.meta.exchange);
-      }
-
-      return acc;
-    }, new Set([]));
-
-    await new Promise((resolve) => {
-      this.connection.managedChannel.waitForConnect(async () => {
-        for (const exchange of exchanges) {
-          await this.connection.channel.assertExchange(exchange, 'direct');
-        }
-
-        return resolve(true);
-      });
-    });
-  }
-
-  public static forRoot(): DynamicModule {
+export class RabbitMQModule {
+  public static forRoot(options: Partial<RabbitMQConfig> = {}): DynamicModule {
     return {
+      module: RabbitMQModule,
+      global: true,
       imports: [
         DiscoveryModule,
         NestJSRabbitMQ.forRootAsync({
@@ -69,10 +33,10 @@ export class RabbitMQModule implements OnModuleInit {
             const RABBITMQ_PORT = config.getOrThrow<string>('RABBITMQ_PORT');
             const RABBITMQ_VHOST = config.getOrThrow<string>('RABBITMQ_VHOST');
 
-            return {
+            const default_options: RabbitMQConfig = {
               exchanges: [
                 {
-                  name: `${RABBITMQ_PREFIX}${RABBITMQ_EXCHANGE}`,
+                  name: RABBITMQ_EXCHANGE,
                   type: 'direct',
                   options: { durable: true },
                 },
@@ -81,14 +45,24 @@ export class RabbitMQModule implements OnModuleInit {
               prefetchCount: 30,
               defaultSubscribeErrorBehavior: MessageHandlerErrorBehavior.NACK,
               connectionInitOptions: { wait: true, timeout: 10000 },
+              ...options,
             };
+
+            default_options.exchanges?.forEach((exchange, idx) => {
+              default_options.exchanges![idx] = {
+                name: `${RABBITMQ_PREFIX}${exchange.name}`,
+                type: exchange.type ?? 'direct',
+                options: exchange.options || { durable: true },
+              };
+            });
+
+            return default_options;
           },
           inject: [ConfigService],
         }),
       ],
-      providers: [RabbitMQDiscovery, RabbitMQService],
+      providers: [RabbitMQDiscovery, RabbitMQService, RabbitMQInitializer],
       exports: [RabbitMQService],
-      module: RabbitMQModule,
     };
   }
 }

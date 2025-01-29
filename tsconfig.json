@@ -6,7 +6,6 @@
     "esModuleInterop": true,
     "declaration": true,
     "removeComments": true,
-    
     "sourceMap": true,
     "skipLibCheck": true,
 
@@ -21,8 +20,10 @@
     "noFallthroughCasesInSwitch": true,
 
     "rootDir": "./",
+    "outDir": "./dist",
     "typeRoots": [
-      "./node_modules/@types",
+      "./node_modules/@types"
     ],
+    "resolveJsonModule": true
   }
 }

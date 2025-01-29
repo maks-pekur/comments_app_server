@@ -8,10 +8,10 @@ import {
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
+import { File } from '../files/file.entity';
 import { User } from '../user/user.entity';
-import { File } from '../upload/file.entity';
 
-@Entity({ name: 'comments' })
+@Entity('comments')
 export class Comment {
   @PrimaryGeneratedColumn('uuid')
   @Index('IDX_comment_id')

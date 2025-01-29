@@ -4,6 +4,7 @@ import { ENV_FILE_PATHS, EXPAND_VARIABLES } from './app.env';
 import { AuthMiddleware } from './auth/auth.middleware';
 import { AuthModule } from './auth/auth.module';
 import { CommentsModule } from './comments/comments.module';
+import { FileModule } from './files/file.module';
 import { JwtModule } from './jwt/jwt.module';
 import { RabbitMQModule } from './rabbitmq/rabbitmq.module';
 import { RedisModule } from './redis/redis.module';
@@ -28,6 +29,7 @@ import { WsModule } from './ws/ws.module';
     CommentsModule,
     WsModule,
     UploadModule,
+    FileModule,
   ],
   controllers: [],
   providers: [],
