@@ -6,11 +6,12 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { promises as fs } from 'fs';
-import { Brackets, Repository } from 'typeorm';
+import { DataSource, Repository } from 'typeorm';
 import { File } from '../files/file.entity';
 import { RabbitMQService } from '../rabbitmq/rabbitmq.service';
 import { RedisService } from '../redis/redis.service';
 import { UploadService } from '../upload/upload.service';
+import { User } from '../user/user.entity';
 import { Comment } from './comment.entity';
 
 @Injectable()
@@ -18,11 +19,17 @@ export class CommentsService {
   constructor(
     @InjectRepository(Comment)
     private readonly commentRepository: Repository<Comment>,
+
+    @InjectRepository(User)
+    private readonly userRepository: Repository<User>,
+
     @InjectRepository(File)
     private readonly fileRepository: Repository<File>,
+
     private readonly uploadService: UploadService,
     private readonly redisService: RedisService,
     private readonly rabbitMQService: RabbitMQService,
+    private readonly data_source: DataSource,
   ) {}
 
   async getComments(
@@ -39,7 +46,6 @@ export class CommentsService {
     const validLimit = Math.max(limit, 1);
 
     const cacheKey = `comments:${validPage}:${validLimit}:${sort}:${order}:${JSON.stringify(filters)}`;
-
     const cachedResult = await this.redisService.get<{
       data: Comment[];
       meta: { total: number; page: number; pages: number };
@@ -49,29 +55,32 @@ export class CommentsService {
       return cachedResult;
     }
 
-    const where = new Brackets((qb) => {
-      qb.andWhere('comment.parentComment IS NULL');
-
-      if (filters.text) {
-        qb.andWhere('comment.text LIKE :text', { text: `%${filters.text}%` });
-      }
-      if (filters.username) {
-        qb.andWhere('user.username LIKE :username', {
-          username: `%${filters.username}%`,
-        });
-      }
-      if (filters.email) {
-        qb.andWhere('user.email LIKE :email', { email: `%${filters.email}%` });
-      }
-    });
-
-    const [comments, total] = await this.commentRepository
+    const queryBuilder = this.commentRepository
       .createQueryBuilder('comment')
       .leftJoinAndSelect('comment.user', 'user')
       .leftJoinAndSelect('comment.files', 'files')
       .leftJoinAndSelect('comment.replies', 'replies')
       .leftJoinAndSelect('replies.user', 'replyUser')
-      .where(where)
+      .leftJoinAndSelect('replies.files', 'replyFiles')
+      .where('comment.parentComment IS NULL');
+
+    if (filters.text) {
+      queryBuilder.andWhere('comment.text LIKE :text', {
+        text: `%${filters.text}%`,
+      });
+    }
+    if (filters.username) {
+      queryBuilder.andWhere('user.username LIKE :username', {
+        username: `%${filters.username}%`,
+      });
+    }
+    if (filters.email) {
+      queryBuilder.andWhere('user.email LIKE :email', {
+        email: `%${filters.email}%`,
+      });
+    }
+
+    const [comments, total] = await queryBuilder
       .orderBy(`comment.${sort}`, order)
       .skip((validPage - 1) * validLimit)
       .take(validLimit)
@@ -81,11 +90,7 @@ export class CommentsService {
 
     const result = {
       data: comments,
-      meta: {
-        total,
-        page: validPage,
-        pages,
-      },
+      meta: { total, page: validPage, pages },
     };
 
     await this.redisService.set(cacheKey, result, 60 * 5);
@@ -99,40 +104,51 @@ export class CommentsService {
     files?: Express.Multer.File[],
     parentId?: string,
   ): Promise<Comment> {
-    const parentComment = parentId
-      ? await this.commentRepository.findOne({ where: { id: parentId } })
-      : null;
+    return this.data_source.transaction(async (manager) => {
+      const user = await this.userRepository.findOne({ where: { id: userId } });
+      if (!user) {
+        throw new NotFoundException('User not found');
+      }
 
-    if (parentId && !parentComment) {
-      throw new NotFoundException('Parent comment not found');
-    }
+      let parentComment: Comment | null = null;
+      if (parentId) {
+        parentComment = await manager
+          .getRepository(Comment)
+          .findOne({ where: { id: parentId } });
+        if (!parentComment) {
+          throw new NotFoundException('Parent comment not found');
+        }
+      }
 
-    const comment = this.commentRepository.create({
-      text,
-      user: { id: userId } as any,
-      parentComment: parentComment || undefined,
+      const comment = manager.getRepository(Comment).create({
+        text,
+        user,
+        parentComment: parentComment || undefined,
+      });
+
+      const savedComment = await manager.getRepository(Comment).save(comment);
+
+      if (files && files.length > 0) {
+        const uploadedFiles = await Promise.all(
+          files.map((file) => this.uploadService.uploadFile(file)),
+        );
+
+        const newFiles = uploadedFiles.map((file) =>
+          manager.getRepository(File).create({
+            filename: file.filename,
+            mimetype: file.mimetype,
+            path: file.path,
+            comment: savedComment,
+          }),
+        );
+
+        await manager.getRepository(File).save(newFiles);
+      }
+
+      await this.redisService.delPattern('comments:*');
+
+      return savedComment;
     });
-
-    const savedComment = await this.commentRepository.save(comment);
-
-    if (files && files.length > 0) {
-      const uploadedFiles = await Promise.all(
-        files.map((file) => this.uploadService.uploadFile(file)),
-      );
-
-      const newFiles = uploadedFiles.map((file) =>
-        this.fileRepository.create({
-          filename: file.filename,
-          mimetype: file.mimetype,
-          path: file.path,
-          comment: savedComment,
-        }),
-      );
-
-      await this.fileRepository.save(newFiles);
-    }
-
-    return savedComment;
   }
 
   async updateComment(
@@ -154,7 +170,10 @@ export class CommentsService {
       throw new UnauthorizedException('Not authorized to edit this comment');
     }
 
-    if (newText) {
+    if (newText !== undefined) {
+      if (newText.trim() === '') {
+        throw new ForbiddenException('Comment text cannot be empty');
+      }
       comment.text = newText;
     }
 
@@ -186,13 +205,17 @@ export class CommentsService {
       await this.fileRepository.save(newFiles);
     }
 
-    return this.commentRepository.save(comment);
+    await this.commentRepository.save(comment);
+
+    await this.redisService.delPattern('comments:*');
+
+    return comment;
   }
 
   async deleteComment(id: string, userId: string): Promise<void> {
     const comment = await this.commentRepository.findOne({
       where: { id },
-      relations: ['user', 'files'],
+      relations: ['user', 'files', 'replies'],
     });
 
     if (!comment) {
@@ -211,6 +234,12 @@ export class CommentsService {
       });
     }
 
+    if (comment.replies && comment.replies.length > 0) {
+      await this.commentRepository.remove(comment.replies);
+    }
+
     await this.commentRepository.remove(comment);
+
+    await this.redisService.delPattern('comments:*');
   }
 }

@@ -25,6 +25,7 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { RestCurrentUser } from '../auth/auth.decorator';
+import { CaptchaService } from '../captcha/captcha.service';
 import { IJwtPayload } from '../user/user.entity';
 import { sanitizeComment } from '../utils/sanitize';
 import { CommentsService } from './comments.service';
@@ -34,7 +35,10 @@ import { UpdateCommentDTO } from './dto/update-comment.dto';
 @ApiTags('comments')
 @Controller('comments')
 export class CommentsController {
-  constructor(private readonly commentsService: CommentsService) {}
+  constructor(
+    private readonly commentsService: CommentsService,
+    private readonly captchaService: CaptchaService,
+  ) {}
 
   @Get()
   @ApiQuery({
@@ -105,10 +109,10 @@ export class CommentsController {
   }
 
   @Post()
-  @ApiOperation({ summary: 'Create a comment with optional files' })
+  @ApiOperation({ summary: 'Create a comment with optional files and CAPTCHA' })
   @ApiConsumes('multipart/form-data')
   @ApiBody({
-    description: 'Comment data with optional files',
+    description: 'Comment data with optional files and CAPTCHA',
     schema: {
       type: 'object',
       properties: {
@@ -117,6 +121,11 @@ export class CommentsController {
           type: 'string',
           example: 'parent-comment-id',
           nullable: true,
+        },
+        captcha: {
+          type: 'string',
+          example: '03AFcWeA5B4c..._TOKEN_...q6J2',
+          description: 'CAPTCHA token from Google reCAPTCHA',
         },
         files: {
           type: 'array',
@@ -143,6 +152,8 @@ export class CommentsController {
     }
 
     const userId = current_user.id;
+
+    await this.captchaService.verifyCaptcha(createCommentDto.captcha);
 
     return this.commentsService.createComment(
       userId,

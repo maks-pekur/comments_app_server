@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { RedisKey } from 'ioredis';
 import { Observable } from 'rxjs';
@@ -12,16 +12,19 @@ export interface IRedisSubscribeMessage {
   readonly channel: string;
 }
 
-const REDIS_EXPIRE_TIME_IN_SECONDS = 7 * 24 * 60 * 60; // 7 days
+const REDIS_EXPIRE_TIME_IN_SECONDS = 7 * 24 * 60 * 60;
 
 @Injectable()
 export class RedisService {
+  private readonly logger = new Logger(RedisService.name);
   public readonly id: string = v4();
 
   constructor(
     private readonly config: ConfigService,
     private readonly client: RedisClient,
-  ) {}
+  ) {
+    this.handleReconnect();
+  }
 
   public get pub_client() {
     return this.client.pub;
@@ -29,6 +32,20 @@ export class RedisService {
 
   public get sub_client() {
     return this.client.sub;
+  }
+
+  private handleReconnect() {
+    this.client.sub.on('reconnecting', () => {
+      this.logger.warn('Redis reconnecting...');
+    });
+
+    this.client.sub.on('connect', () => {
+      this.logger.log('Redis connected.');
+    });
+
+    this.client.sub.on('error', (error) => {
+      this.logger.error(`Redis connection error: ${error.message}`);
+    });
   }
 
   public fromEvent<T>(event_name: string): Observable<T> {
@@ -48,29 +65,35 @@ export class RedisService {
     event_name: string,
     value: Record<string, unknown>,
   ): Promise<number> {
-    const REDIS_KEY = this.config.getOrThrow<string>('REDIS_KEY');
-    const key = `${REDIS_KEY}_${event_name}`;
+    try {
+      const REDIS_KEY = this.config.getOrThrow<string>('REDIS_KEY');
+      const key = `${REDIS_KEY}_${event_name}`;
+      const string_value = JSON.stringify({ redis_id: this.id, ...value });
 
-    const string_value = JSON.stringify({ redis_id: this.id, ...value });
-
-    return new Promise<number>((resolve, reject) =>
-      this.client.publish(key, string_value, (error, reply) => {
-        if (error) {
-          return reject(error);
-        }
-        return resolve(reply!);
-      }),
-    );
+      return await new Promise<number>((resolve, reject) =>
+        this.client.publish(key, string_value, (error, reply) => {
+          if (error) {
+            this.logger.error(`Redis publish error: ${error.message}`);
+            return reject(error);
+          }
+          return resolve(reply!);
+        }),
+      );
+    } catch (error: any) {
+      this.logger.error(`Error in publish: ${error.message}`);
+      return 0;
+    }
   }
 
-  public async exists(key: RedisKey) {
-    return !!(await this.pub_client.exists(key));
-  }
-
-  public async get<T>(key: RedisKey) {
-    const res = await this.pub_client.get(key);
-    if (!res) return null;
-    return JSON.parse(res) as T;
+  public async get<T>(key: RedisKey): Promise<T | null> {
+    try {
+      const res = await this.pub_client.get(key);
+      if (!res) return null;
+      return JSON.parse(res) as T;
+    } catch (error: any) {
+      this.logger.error(`Redis get error: ${error.message}`);
+      return null;
+    }
   }
 
   public async set(
@@ -78,119 +101,67 @@ export class RedisService {
     value: unknown,
     expire_time_in_seconds: number = REDIS_EXPIRE_TIME_IN_SECONDS,
   ) {
-    return this.pub_client.set(
-      key,
-      JSON.stringify(value),
-      'EX',
-      expire_time_in_seconds,
-    );
+    try {
+      return await this.pub_client.set(
+        key,
+        JSON.stringify(value),
+        'EX',
+        expire_time_in_seconds,
+      );
+    } catch (error: any) {
+      this.logger.error(`Redis set error: ${error.message}`);
+      return null;
+    }
   }
 
   public async del(...keys: RedisKey[]) {
-    return this.pub_client.del(keys);
+    try {
+      return await this.pub_client.del(keys);
+    } catch (error: any) {
+      this.logger.error(`Redis del error: ${error.message}`);
+      return null;
+    }
   }
 
-  public async keys(pattern: string) {
-    const REDIS_KEY = this.config.getOrThrow<string>('REDIS_KEY');
-    const key_pattern = `${REDIS_KEY}${pattern}`;
-
-    const found = await this.pub_client.keys(key_pattern);
-    return found.map((key) => key.substring(REDIS_KEY.length));
-  }
-
-  public async hexists(key: RedisKey, field: string) {
-    return !!(await this.pub_client.hexists(key, field));
+  public async delPattern(pattern: string) {
+    try {
+      const REDIS_KEY = this.config.getOrThrow<string>('REDIS_KEY');
+      const key_pattern = `${REDIS_KEY}${pattern}`;
+      const found = await this.pub_client.keys(key_pattern);
+      if (found.length > 0) {
+        await this.pub_client.del(found);
+      }
+    } catch (error: any) {
+      this.logger.error(`Redis delPattern error: ${error.message}`);
+    }
   }
 
   public async hset(key: RedisKey, field: string, value: unknown) {
-    return this.pub_client.hset(key, field, JSON.stringify(value));
-  }
-
-  public async hsetall(key: RedisKey, object: object) {
-    return this.pub_client.hset(key, object);
+    try {
+      return this.pub_client.hset(key, field, JSON.stringify(value));
+    } catch (error: any) {
+      this.logger.error(`Redis hset error: ${error.message}`);
+      return null;
+    }
   }
 
   public async hget<T>(key: RedisKey, field: string) {
-    const res = await this.pub_client.hget(key, field);
-    if (res) return JSON.parse(res) as T;
-    return null;
-  }
-
-  public async hgetall<T>(key: RedisKey) {
-    const raw = await this.pub_client.hgetall(key);
-    const parsed: Record<string, T> = {};
-
-    for (const [field, val] of Object.entries(raw)) {
-      try {
-        parsed[field] = JSON.parse(val) as T;
-      } catch {
-        (parsed as any)[field] = val;
-      }
+    try {
+      const res = await this.pub_client.hget(key, field);
+      if (res) return JSON.parse(res) as T;
+      return null;
+    } catch (error: any) {
+      this.logger.error(`Redis hget error: ${error.message}`);
+      return null;
     }
-    return parsed;
   }
 
   public async hdel(key: RedisKey, ...fields: string[]) {
-    return this.pub_client.hdel(key, ...fields);
-  }
-
-  public async lpush(key: RedisKey, value: unknown) {
-    return this.pub_client.lpush(key, JSON.stringify(value));
-  }
-
-  public async rpush(key: RedisKey, value: unknown) {
-    return this.pub_client.rpush(key, JSON.stringify(value));
-  }
-
-  public async lpop<T>(key: RedisKey, count = 1) {
-    const arr = await this.pub_client.lpop(key, count);
-    if (!arr) return null;
-    if (Array.isArray(arr)) {
-      return arr.map((i) => JSON.parse(i)) as T[];
-    } else {
-      return [JSON.parse(arr) as T];
+    try {
+      return this.pub_client.hdel(key, ...fields);
+    } catch (error: any) {
+      this.logger.error(`Redis hdel error: ${error.message}`);
+      return null;
     }
-  }
-
-  public async rpop<T>(key: RedisKey, count = 1) {
-    const arr = await this.pub_client.rpop(key, count);
-    if (!arr) return null;
-    if (Array.isArray(arr)) {
-      return arr.map((i) => JSON.parse(i)) as T[];
-    } else {
-      return [JSON.parse(arr) as T];
-    }
-  }
-
-  public async llen(key: RedisKey) {
-    return this.pub_client.llen(key);
-  }
-
-  public async lpos(key: RedisKey, value: string | number) {
-    return this.pub_client.lpos(key, value);
-  }
-
-  public async lrem(
-    key: RedisKey,
-    count: number | string,
-    element: string | Buffer | number,
-  ) {
-    return this.pub_client.lrem(key, count, element);
-  }
-
-  public async mget<T>(keys: RedisKey[]) {
-    const res = await this.pub_client.mget(keys);
-    return (res ?? []).map((data) => (data ? (JSON.parse(data) as T) : null));
-  }
-
-  public async mset(data: (string | number)[]) {
-    return this.pub_client.mset(data);
-  }
-
-  public async expire(
-    key: RedisKey,
-    expire_time_in_seconds: number = REDIS_EXPIRE_TIME_IN_SECONDS,
-  ) {
-    return this.pub_client.expire(key, expire_time_in_seconds);
   }
 }

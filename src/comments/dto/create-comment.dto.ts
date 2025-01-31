@@ -17,4 +17,11 @@ export class CreateCommentDTO {
   @IsUUID()
   @IsOptional()
   public parentId?: string;
+
+  @ApiProperty({
+    description: 'CAPTCHA token from Google reCAPTCHA',
+    example: '03AFcWeA5B4c..._TOKEN_...q6J2',
+  })
+  @IsString()
+  public captcha!: string;
 }
